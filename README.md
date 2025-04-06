@@ -11,8 +11,7 @@ rag-system/
 ├── GradioDefine.py         # 交互界面实现
 ├── 本地知识库/              # 默认文档存储目录
 │   ├── *.pdf/.txt/.docx    # 支持多种文档格式
-├── requirements.txt        # 依赖列表
-└── config.json             # 配置文件(可选)
+└── requirements.txt        # 依赖列表
 ```
 
 ## 快速开始
@@ -40,11 +39,10 @@ pip install -r requirements.txt
 ### 3. 运行系统
 
 ```bash
-# 首次运行会自动构建索引
-python main.py
+# 首次运行需要构建索引
+python FaissIndexBuild.py
 
-# 指定自定义知识库路径
-python main.py --data_path ./my_documents
+python main.py
 ```
 
 ## 模块说明
@@ -82,19 +80,6 @@ python main.py --data_path ./my_documents
   - 对话历史管理
 
 ![界面截图](ui_screenshot.png)
-
-## 高级配置
-
-通过`config.json`自定义设置：
-
-```json
-{
-  "embedding_model": "BAAI/bge-m3",
-  "llm_options": ["deepseek-r1:7b", "llama3"],
-  "chunk_size": 300,
-  "chunk_overlap": 30
-}
-```
 
 ## 常见问题
 
