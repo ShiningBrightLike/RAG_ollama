@@ -81,7 +81,7 @@ python main.py --data_path ./my_documents
   - 支持多模型切换
   - 对话历史管理
 
-![界面截图](assets/ui_screenshot.png)
+![界面截图](ui_screenshot.png)
 
 ## 高级配置
 
