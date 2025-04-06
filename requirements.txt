@@ -1,0 +1,21 @@
+# 向量数据库
+faiss-cpu==1.7.4  # 或 faiss-gpu==1.7.4 如需GPU加速
+
+# 大模型交互
+ollama==0.1.14
+
+# 文本嵌入
+sentence-transformers==2.6.1
+
+# 文档处理
+langchain==0.1.16
+unstructured==0.12.6  # 文档加载器核心
+unstructured[pdf]==0.12.6  # PDF支持
+unstructured[docx]==0.12.6  # Word支持
+unstructured[md]==0.12.6  # Markdown支持
+
+# 界面
+gradio==4.24.0
+
+# 数值计算
+numpy==1.26.4
