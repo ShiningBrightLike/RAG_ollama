@@ -40,8 +40,7 @@ pip install -r requirements.txt
 ### 3. 运行系统
 
 ```bash
-# 首次运行需要构建索引
-python FaissIndexBuild.py
+python FaissIndexBuild.py # 首次运行需要构建索引
 
 python main.py
 ```
@@ -101,3 +100,9 @@ rm text_search_index.faiss index_metadata.json
 1. 将文件放入知识库目录
 2. 删除现有索引文件
 3. 重新启动程序
+
+## 参考项目
+1. https://github.com/chatchat-space/Langchain-Chatchat
+2. https://github.com/ollama/ollama?tab=readme-ov-file
+
+
