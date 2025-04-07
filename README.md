@@ -34,6 +34,7 @@ pip install -r requirements.txt
 - PDF (.pdf)
 - Word (.docx)
 - 纯文本 (.txt)
+- PPT (.pptx)
 - Markdown (.md)
 
 ### 3. 运行系统
