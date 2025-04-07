@@ -85,10 +85,10 @@ python main.py
 - **核心类**：
   ```python
   class RAGSystem:
-      def search(query: str, k=3) -> List[Dict]
+      def search_similar_text(self, query: str, k=3) -> List[Dict]
       # 检索相似文本（返回包含来源的字典）
       
-      def generate_response(query: str, stream=False) -> Generator
+      def generate_response(self, query: str, stream=False, use_rag=True, model_name="deepseek-r1:7b") -> Generator
       # 生成带来源引用的回答
   ```
 
