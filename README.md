@@ -10,7 +10,7 @@ rag-system/
 ├── FaissIndexBuild.py      # 索引构建模块
 ├── GradioDefine.py         # 交互界面实现
 ├── 本地知识库/              # 默认文档存储目录
-│   ├── *.pdf/.txt/.docx    # 支持多种文档格式
+│   ├── *.pdf/.txt/.docx/.pptx    # 支持多种文档格式
 └── requirements.txt        # 依赖列表
 ```
 
