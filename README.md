@@ -70,11 +70,14 @@ python main.py
 - **功能**：文档处理与向量索引构建
 - **核心方法**：
   ```python
-  build_index(documents, index_path="index.faiss")
-  # 构建FAISS索引并保存元数据
+  load_text_from_files(file_paths)
+  # 加载文件并保留来源信息
+
+  split_documents(documents, chunk_size=300, chunk_overlap=30)
+  # 文本分割
   
-  load_index(index_path="index.faiss", metadata_path="metadata.json")
-  # 加载已有索引
+  build_faiss_index(docs, index_path="text_search_index.faiss", metadata_path="index_metadata.json")
+  # 构建FAISS索引并保存元数据
   ```
 
 ### 2. RAGSystem.py
