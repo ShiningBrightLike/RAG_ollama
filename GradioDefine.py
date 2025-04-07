@@ -1,6 +1,6 @@
 import gradio as gr
 
-# ========== 4. Gradio界面 ==========
+# ========== Gradio界面 ==========
 def format_results(results):
     """格式化检索结果"""
     if not results:
@@ -81,4 +81,4 @@ class GradioInterface:
                 outputs=[chatbot, retrieval_output]
             )
 
-        demo.launch()
+        demo.launch(share=True)
