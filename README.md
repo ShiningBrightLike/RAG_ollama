@@ -1,5 +1,7 @@
+```markdown
 # RAG_ollama
-基于大语言模型的本地知识库问答系统，多文件模块化实现的RAG系统，支持文档检索与生成式问答，保留文本来源信息。
+
+基于大语言模型的本地知识库问答系统，多文件模块化实现的 RAG 系统，支持文档检索与生成式问答，保留文本来源信息。
 
 ## 项目结构
 
@@ -28,20 +30,37 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 ```
 
-### 2. 准备知识库
+### 2. 部署大语言模型
 
-将您的文档放入`本地知识库`文件夹，支持格式：
+```bash
+# 安装Ollama（需先下载安装包）
+# 官网：https://ollama.ai
+
+# 拉取并运行模型（以deepseek-r1:7b为例）
+ollama pull deepseek-r1:7b
+ollama run deepseek-r1:7b  # 保持此终端运行
+
+# 如需测试其他模型，可替换为：
+# ollama run llama3
+# ollama run qwen:7b
+```
+
+### 3. 准备知识库
+
+将您的文档放入 `本地知识库` 文件夹，支持格式：
 - PDF (.pdf)
 - Word (.docx)
 - 纯文本 (.txt)
 - PPT (.pptx)
 - Markdown (.md)
 
-### 3. 运行系统
+### 4. 运行系统
 
 ```bash
-python FaissIndexBuild.py # 首次运行需要构建索引
+# 首次运行需要构建索引
+python FaissIndexBuild.py
 
+# 启动应用（自动打开浏览器界面）
 python main.py
 ```
 
@@ -84,25 +103,39 @@ python main.py
 ## 常见问题
 
 ### Q1: 如何更换大模型？
-1. 确保已通过Ollama下载模型：
+1. 通过Ollama下载新模型：
    ```bash
-   ollama pull llama3
+   ollama pull <模型名>  # 例如：llama3、qwen:7b
    ```
-2. 在Gradio界面下拉菜单选择
+2. 在Gradio界面下拉菜单选择新模型
+3. 重启Ollama服务运行新模型
 
 ### Q2: 索引未更新怎么办？
-删除以下文件后重启程序：
+删除索引文件后重建：
 ```bash
 rm text_search_index.faiss index_metadata.json
+python FaissIndexBuild.py
 ```
 
 ### Q3: 如何添加新文档？
-1. 将文件放入知识库目录
+1. 将文件放入`本地知识库`目录
 2. 删除现有索引文件
-3. 重新启动程序
+3. 重新运行 `FaissIndexBuild.py`
+
+### Q4: Ollama服务无法连接？
+1. 检查Ollama是否正常运行：
+   ```bash
+   ollama list
+   ```
+2. 确保API端口(默认11434)未被占用
+3. 在`main.py`中检查Ollama基地址配置：
+
+   ```python
+   ollama.base_url = 'http://localhost:11434'
+   ```
 
 ## 参考项目
-1. https://github.com/chatchat-space/Langchain-Chatchat
-2. https://github.com/ollama/ollama?tab=readme-ov-file
-
-
+1. [Langchain-Chatchat](https://github.com/chatchat-space/Langchain-Chatchat)
+2. [Ollama官方文档](https://github.com/ollama/ollama?tab=readme-ov-file)
+3. [Gradio文档](https://www.gradio.app/docs/)
+```
