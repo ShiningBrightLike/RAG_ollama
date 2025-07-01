@@ -1,184 +1,108 @@
 1.深度交叉网络DCN手撕
 """
 import tensorflow as tf
-from tensorflow.keras.layers import Layer, Dense, Embedding, Concatenate, Dropout
+from tensorflow.keras.layers import Layer, Dense, Embedding, Concatenate
 from tensorflow.keras.models import Model
-from tensorflow.keras.regularizers import l2
 
 class CrossNetwork(Layer):
-    """
-    交叉网络层，显式地建模特征交叉
-    公式: x_{l+1} = x_0 * x_l^T * w_l + b_l + x_l
-    """
-    def __init__(self, num_layers, reg_w=1e-4, reg_b=1e-4):
-        """
-        参数:
-            num_layers: 交叉层数
-            reg_w: 权重正则化系数
-            reg_b: 偏置正则化系数
-        """
-        super(CrossNetwork, self).__init__()
+    """交叉网络核心实现"""
+    def __init__(self, num_layers):
+        super().__init__()
         self.num_layers = num_layers
-        self.reg_w = reg_w
-        self.reg_b = reg_b
     
     def build(self, input_shape):
         dim = input_shape[-1]
-        # 初始化权重和偏置
-        self.cross_weights = [
-            self.add_weight(name='w_'+str(i),
-                          shape=(dim, 1),
-                          initializer='random_normal',
-                          regularizer=l2(self.reg_w),
-                          trainable=True)
-            for i in range(self.num_layers)
-        ]
-        self.cross_biases = [
-            self.add_weight(name='b_'+str(i),
-                          shape=(dim, 1),
-                          initializer='random_normal',
-                          regularizer=l2(self.reg_b),
-                          trainable=True)
-            for i in range(self.num_layers)
-        ]
+        # 修改变量名以避免与保留属性冲突
+        self.cross_weights = [self.add_weight(
+            name=f'cross_weight_{i}',
+            shape=(dim, 1), 
+            initializer='random_normal', 
+            trainable=True) 
+            for i in range(self.num_layers)]
+        self.cross_biases = [self.add_weight(
+            name=f'cross_bias_{i}',
+            shape=(dim, 1), 
+            initializer='random_normal', 
+            trainable=True)
+            for i in range(self.num_layers)]
     
     def call(self, inputs):
-        x_0 = tf.expand_dims(inputs, axis=2)  # (batch_size, dim, 1)
+        x_0 = tf.expand_dims(inputs, axis=2)  # (batch, dim, 1)
         x_l = x_0
         
         for i in range(self.num_layers):
-            # x_l^T * w_l (batch_size, 1, 1)
+            # x_l^T * w (batch, 1, 1)
             xl_w = tf.matmul(tf.transpose(x_l, [0, 2, 1]), self.cross_weights[i])
-            # x_0 * (x_l^T * w_l) (batch_size, dim, 1)
+            # x_0 * (x_l^T * w) (batch, dim, 1)
             xl_w = tf.matmul(x_0, xl_w)
-            # 加上偏置
-            xl_w = xl_w + self.cross_biases[i]
-            # 加上x_l
-            x_l = xl_w + x_l
+            # 加上偏置和原始x_l
+            x_l = xl_w + self.cross_biases[i] + x_l
         
-        x_l = tf.squeeze(x_l, axis=2)  # (batch_size, dim)
-        return x_l
+        return tf.squeeze(x_l, axis=2)  # (batch, dim)
 
 class DCN(Model):
-    """
-    深度交叉网络模型
-    """
-    def __init__(self, feature_columns, hidden_units, cross_num=3, 
-                 activation='relu', dropout=0.0, embed_reg=1e-4, reg_w=1e-4, reg_b=1e-4):
+    """深度交叉网络完整模型"""
+    def __init__(self, feature_dims, embed_dim=8, num_cross_layers=3, hidden_units=[64, 32]):
         """
         参数:
-            feature_columns: 特征列信息
-            hidden_units: 深度网络的隐藏单元列表
-            cross_num: 交叉层数
-            activation: 深度网络的激活函数
-            dropout: dropout比率
-            embed_reg: embedding正则化系数
-            reg_w: 交叉网络权重正则化系数
-            reg_b: 交叉网络偏置正则化系数
+            feature_dims: 各特征域的维度，如[100, 50, 200]表示3个特征域，每个域的取值空间大小
+            embed_dim: 嵌入维度
+            num_cross_layers: 交叉层数
+            hidden_units: 深度网络隐藏层单元数
         """
-        super(DCN, self).__init__()
-        # 特征处理层
-        self.feature_layer = FeatureLayer(feature_columns)
-        self.embedding_dim = self.feature_layer.embedding_dim
+        super().__init__()
+        # 嵌入层
+        self.embed_layers = [Embedding(dim, embed_dim) for dim in feature_dims]
         
         # 交叉网络
-        self.cross_network = CrossNetwork(cross_num, reg_w, reg_b)
+        self.cross_net = CrossNetwork(num_cross_layers)
         
         # 深度网络
-        self.deep_network = self._build_deep_network(hidden_units, activation, dropout)
+        self.deep_net = tf.keras.Sequential([
+            Dense(units, activation='relu') for units in hidden_units
+        ])
         
-        # 最终输出层
-        self.final_dense = Dense(1, activation='sigmoid')
-    
-    def _build_deep_network(self, hidden_units, activation, dropout):
-        deep_network = []
-        for units in hidden_units:
-            deep_network.append(Dense(units, activation=activation))
-            if dropout > 0:
-                deep_network.append(Dropout(dropout))
-        return tf.keras.Sequential(deep_network)
+        # 输出层
+        self.output_layer = Dense(1, activation='sigmoid')
     
     def call(self, inputs):
+        # 输入形状: (batch, num_features)
         # 特征嵌入
-        dense_input, sparse_input = inputs[:, :13], inputs[:, 13:]
-        dense_input = tf.cast(dense_input, tf.float32)
-        
-        # 处理稀疏特征
-        sparse_embed = []
-        for i in range(sparse_input.shape[1]):
-            # 获取每个稀疏特征的embedding
-            embed = self.feature_layer.embed_layers['sparse_'+str(i)](sparse_input[:, i])
-            sparse_embed.append(embed)
+        embed_outputs = []
+        for i in range(len(self.embed_layers)):
+            embed = self.embed_layers[i](inputs[:, i])  # (batch, embed_dim)
+            embed_outputs.append(embed)
         
         # 拼接所有特征
-        x = tf.concat([dense_input] + sparse_embed, axis=-1)
+        x = tf.concat(embed_outputs, axis=1)  # (batch, num_features*embed_dim)
         
-        # 交叉网络部分
-        cross_output = self.cross_network(x)
+        # 交叉网络
+        cross_output = self.cross_net(x)
         
-        # 深度网络部分
-        deep_output = self.deep_network(x)
+        # 深度网络
+        deep_output = self.deep_net(x)
         
         # 拼接两部分输出
-        concat_output = tf.concat([cross_output, deep_output], axis=-1)
+        concat_output = tf.concat([cross_output, deep_output], axis=1)
         
         # 最终输出
-        output = self.final_dense(concat_output)
-        
-        return output
+        return self.output_layer(concat_output)
 
-class FeatureLayer(Layer):
-    """
-    特征处理层，处理稀疏和稠密特征
-    """
-    def __init__(self, feature_columns):
-        super(FeatureLayer, self).__init__()
-        self.dense_feature_columns = [fc for fc in feature_columns if not isinstance(fc, SparseFeat)]
-        self.sparse_feature_columns = [fc for fc in feature_columns if isinstance(fc, SparseFeat)]
-        self.embedding_dim = self.sparse_feature_columns[0].embedding_dim if len(self.sparse_feature_columns) > 0 else 0
-        
-        # 创建稀疏特征的embedding层
-        self.embed_layers = {
-            'sparse_'+str(i): Embedding(fc.vocabulary_size, fc.embedding_dim, 
-                                       embeddings_regularizer=l2(fc.embeddings_regularizer))
-            for i, fc in enumerate(self.sparse_feature_columns)
-        }
-    
-    def call(self, inputs):
-        # 实际处理在DCN模型中完成
-        pass
-
-# 定义特征列类型
-class SparseFeat:
-    def __init__(self, name, vocabulary_size, embedding_dim=4, embeddings_regularizer=1e-4):
-        self.name = name
-        self.vocabulary_size = vocabulary_size
-        self.embedding_dim = embedding_dim
-        self.embeddings_regularizer = embeddings_regularizer
-
-class DenseFeat:
-    def __init__(self, name):
-        self.name = name
-
-# 示例用法
+# 使用示例
 if __name__ == "__main__":
-    # 假设我们有13个稠密特征和26个稀疏特征
-    feature_columns = [DenseFeat('dense_'+str(i)) for i in range(13)] + [SparseFeat('sparse_'+str(i), vocabulary_size=100) for i in range(26)]
+    # 假设有3个特征域，取值空间分别为100, 50, 200
+    feature_dims = [100, 50, 200]
     
-    # 创建DCN模型
-    model = DCN(feature_columns, 
-                hidden_units=[128, 64, 32], 
-                cross_num=3,
-                dropout=0.5,
-                embed_reg=1e-4,
-                reg_w=1e-4,
-                reg_b=1e-4)
+    # 创建模型
+    model = DCN(feature_dims, embed_dim=8, num_cross_layers=3, hidden_units=[64, 32, 16])
     
-    # 编译模型
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    
-    # 打印模型结构
-    model.build((None, 39))  # 13 dense + 26 sparse features
+    # 构建模型
+    model.build(input_shape=(None, len(feature_dims)))
     model.summary()
+    
+    # 测试前向传播
+    test_input = tf.constant([[10, 20, 30], [40, 10, 50]])  # 2个样本，3个特征
+    output = model(test_input)
+    print("Output shape:", output)
 """
 
