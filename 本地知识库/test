@@ -1,46 +1,70 @@
 1.深度交叉网络DCN手撕
 """
+import tensorflow as tf
+
 class CrossNet(tf.keras.layers.Layer):
-    """ 交叉网络核心层 """
+    """优化版交叉网络（参数效率+维度安全）"""
     def __init__(self, layer_num=3):
         super().__init__()
-        self.layer_num = layer_num  # 交叉层数
-    
+        self.layer_num = layer_num
+        self.kernels = None  # 对角矩阵参数化
+
     def build(self, input_shape):
-        # 初始化各层参数：权重矩阵W和偏置b
-        self.weights = [self.add_weight(shape=(input_shape[-1],1),
-                        initializer='glorot_normal') for _ in range(self.layer_num)]
-        self.biases = [self.add_weight(shape=(input_shape[-1],),
-                      initializer='zeros') for _ in range(self.layer_num)]
-    
+        # 参数复杂度从O(d)降至O(1)
+        self.kernels = [
+            self.add_weight(f'kernel_{i}', shape=(1,),
+                           initializer='glorot_normal')
+            for i in range(self.layer_num)
+        ]
+        self.biases = [
+            self.add_weight(f'bias_{i}', shape=(input_shape[-1],),
+                           initializer='zeros')
+            for i in range(self.layer_num)
+        ]
+
     def call(self, x0):
-        x = x0  # 初始输入
+        x = x0
         for i in range(self.layer_num):
-            # 计算交叉项：x0 * (W*x + b) + x
-            x = tf.multiply(x0, tf.matmul(x, self.weights[i]) + self.biases[i]) + x
+            # 使用逐元素乘避免维度问题
+            w_term = self.kernels[i] * x  # 广播乘法
+            cross_term = tf.multiply(x0, w_term) + self.biases[i]
+            x = cross_term + x  # 残差连接
         return x
 
 class DCN(tf.keras.Model):
-    def __init__(self):
+    """支持混合特征输入的增强版DCN"""
+    def __init__(self, num_numeric=2, embed_sizes=None):
         super().__init__()
-        self.embedding = tf.keras.layers.Embedding(1000, 8)  # 假设离散特征嵌入
-        self.cross_net = CrossNet(layer_num=3)  # 3层交叉网络（4阶特征交叉）
-        self.dnn = tf.keras.Sequential([        # 深度网络部分
-            tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(32, activation='relu')])
-        self.final_layer = tf.keras.layers.Dense(1, activation='sigmoid')
+        # 混合特征处理分支
+        self.numeric_dense = Dense(8) if num_numeric >0 else None
+        self.embeddings = [
+            Embedding(size, dim) for size, dim in embed_sizes
+        ] if embed_sizes else []
         
+        # 双塔结构
+        self.cross_net = CrossNet(layer_num=4)  # 4层交叉（5阶特征组合）
+        self.dnn = Dense(64, activation='relu')
+        
+        # 动态融合层
+        self.fusion_gate = Dense(64, activation='sigmoid')  # 门控融合
+
     def call(self, inputs):
-        # 处理输入（假设输入含离散特征）
-        emb = self.embedding(inputs)
-        emb_flat = tf.keras.layers.Flatten()(emb)
+        # 分离处理数值型/类别型特征
+        numeric_part = self.numeric_dense(inputs['numerics'])
+        embed_part = [emb(inputs[f'cat_{i}']) for i, emb in enumerate(self.embeddings)]
         
-        # 并行计算交叉网络和深度网络
-        cross_output = self.cross_net(emb_flat)      # [B, D]
-        dnn_output = self.dnn(emb_flat)              # [B, D]
+        # 拼接所有特征
+        combined = tf.concat([numeric_part]+embed_part, axis=1)
         
-        # 拼接后输出
-        concat = tf.concat([cross_output, dnn_output], axis=1)
-        return self.final_layer(concat)
+        # 并行网络
+        cross_out = self.cross_net(combined)
+        dnn_out = self.dnn(combined)
+        
+        # 门控融合
+        gate = self.fusion_gate(combined)
+        fused = gate * cross_out + (1-gate) * dnn_out
+        
+        return Dense(1, activation='sigmoid')(fused)
+
 """
 
